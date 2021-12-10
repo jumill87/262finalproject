@@ -1,0 +1,283 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              05/14/2020 13:26:45 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <reg51.h>
+   2          
+   3          void LCD_Init (void);
+   4          void delay(unsigned int count);
+   5          void LCD_Command (unsigned char cmd);
+   6          void LCD_Char (unsigned char char_data);
+   7          void LCD_String (unsigned char *str);
+   8          void Counter(unsigned short int lengthSeconds, unsigned char displayCount);
+   9          
+  10          sfr lcd_data_port=0x90; //use P1 for lcd
+  11          sbit rs=P2^6;//reg select for lcd
+  12          sbit rw=P2^7; //read write for lcd
+  13          sbit en=P3^7; //enable for lcd
+  14          
+  15          //sbits for lights
+  16          sbit ewG = P2^0;
+  17          sbit ewY = P2^1;
+  18          sbit ewR = P2^2;
+  19          sbit nsG = P2^3;
+  20          sbit nsY = P2^4;
+  21          sbit nsR = P2^5;
+  22          sbit lcdBacklight = P3^6;
+  23          
+  24          //globals
+  25          unsigned char walkState = 0;
+  26          unsigned char trafficSign1[] = "6 feet apart";
+  27          unsigned char trafficSign2[] = "Or 6 feet under";
+  28          
+  29          void main()
+  30          {
+  31   1              unsigned char state = 0;
+  32   1              IE = 0x81; //enable external interupt P3.2
+  33   1              LCD_Init(); 
+  34   1              
+  35   1              while(1){
+  36   2                      //set lights to all off
+  37   2                      ewG = 0;
+  38   2                      ewY = 0;
+  39   2                      ewR = 0;
+  40   2                      nsG = 0;
+  41   2                      nsY = 0;
+  42   2                      nsR = 0;
+  43   2                      
+  44   2                      switch(state){
+  45   3                              case 0x00: //East West is green
+  46   3                              {
+  47   4                                      nsY = 0; //turn off N-S yellow light from state 3
+  48   4                                      ewR = 0; //turn off E-W red light from state 2
+  49   4                                      ewG = 1; //turn on E-W green light
+  50   4                                      nsR = 1; //turn on N-S red light
+  51   4                                      
+  52   4                                      if(walkState != 0){ //walk is on
+  53   5                                              //display count down
+  54   5                                              Counter(0x06, walkState);
+C51 COMPILER V9.60.0.0   MAIN                                                              05/14/2020 13:26:45 PAGE 2   
+
+  55   5                                              walkState = 0xff; //set walk state for yellow light
+  56   5                                      }
+  57   4                                      else{ //walk is off
+  58   5                                              //display road sign
+  59   5                                              Counter(0x06, 0x00);
+  60   5                                      }
+  61   4                                      state++; //next state
+  62   4                              }
+  63   3                              case 0x01: //East West is Yellow
+  64   3                              {
+  65   4                                      ewG = 0; //turn off E-W green light from state 0
+  66   4                                      ewY = 1; //turn on E-W yellow light
+  67   4                                      
+  68   4                                      if(walkState == 0xff){ //walk is on (from green light)
+  69   5                                              //flash
+  70   5                                              Counter(0x03, walkState);
+  71   5                                              walkState = 0; //walk procedure done, reset walk state
+  72   5                                      }
+  73   4                                      else{ //walk is off
+  74   5                                              //display road sign
+  75   5                                              Counter(0x03, 0x00);
+  76   5                                      }
+  77   4                                      state++; //next state
+  78   4                              }
+  79   3                              case 0x02: //North South is Green
+  80   3                              {
+  81   4                                      
+  82   4                                      nsR = 0; //turn off N-S red light from state 0
+  83   4                                      ewY = 0; //turn off E-W yellow light from state 1
+  84   4                                      nsG = 1; //turn on N-S green light
+  85   4                                      ewR = 1; //turn on E-W red light
+  86   4                                      
+  87   4                                      if(walkState != 0){ //walk is on
+  88   5                                              //display count down
+  89   5                                              Counter(0x06, walkState);
+  90   5                                              walkState = 0xff; //set walk state for yellow light
+  91   5                                      }
+  92   4                                      else{ //walk is off
+  93   5                                              //display road sign
+  94   5                                              Counter(0x06, 0x00);
+  95   5                                      }
+  96   4                                      state++; //next state
+  97   4                              }
+  98   3                              case 0x03: //North South is Yellow
+  99   3                              {
+ 100   4                                      
+ 101   4                                      nsG = 0; //turn off N-S green light from state 2
+ 102   4                                      nsY = 1; //turn on N-S Yellow light
+ 103   4                                      
+ 104   4                                      if(walkState == 0xff){ //walk is on (from green light)
+ 105   5                                              //flash
+ 106   5                                              Counter(0x03, walkState);
+ 107   5                                              walkState = 0; //walk procedure done, reset walk state
+ 108   5                                      }
+ 109   4                                      else{ //walk is off
+ 110   5                                              //display road sign
+ 111   5                                              Counter(0x03, 0x00);
+ 112   5                                      }
+ 113   4                                      state = 0; //go to state 0
+ 114   4                              }
+ 115   3                      }
+ 116   2              }
+C51 COMPILER V9.60.0.0   MAIN                                                              05/14/2020 13:26:45 PAGE 3   
+
+ 117   1      }
+ 118          
+ 119          void walk(void) interrupt 0{
+ 120   1              if(walkState == 0x00){
+ 121   2                      walkState = 0x01; //set walkState to 1 on interupt
+ 122   2              }
+ 123   1      }
+ 124          
+ 125          void Counter(unsigned short int lengthSeconds, unsigned char walkState)
+ 126          {
+ 127   1              int counter;
+ 128   1              if (walkState != 0){
+ 129   2                      if(walkState == 0x01){
+ 130   3                              //count down
+ 131   3                              counter = 0;
+ 132   3                              while(counter < lengthSeconds*1000) //repeat until total time is reached in ms
+ 133   3                              {
+ 134   4                                      if((counter % 1000) == 0){
+ 135   5                                              //printByte(lengthSeconds - (counter/1000));
+ 136   5                                              LCD_Command (0x01);     //clear display
+ 137   5                                              LCD_Command (0x80); //move cursor to home
+ 138   5                                              LCD_String("Time to walk: ");
+ 139   5                                              LCD_Char((lengthSeconds - (counter / 1000)) + 0x30);
+ 140   5                                      }
+ 141   4                                      //counter
+ 142   4                                      TMOD = 0x01; //timer0 mode 1
+ 143   4                                      TL0 = 0x66; //timer start value
+ 144   4                                      TH0 = 0xFC; //timer start value
+ 145   4                                      TR0 = 1; //start timer
+ 146   4                                      while(~TF0); //wait for flag
+ 147   4                                      counter++; //increment counter
+ 148   4                                      TF0 = 0; //reset flag
+ 149   4                              }
+ 150   3                              TR0 = 0; //stop timer
+ 151   3                      }
+ 152   2                      else{
+ 153   3                              //flash
+ 154   3                              counter = 0;
+ 155   3                              //flash lcd on-off
+ 156   3                              LCD_Command (0x01);     //clear display
+ 157   3                              LCD_Command (0x80); //move cursor to home
+ 158   3                              LCD_String("Run!!!");
+ 159   3                              while(counter < lengthSeconds*1000) //repeat until total time is reached in ms
+ 160   3                              {
+ 161   4                                      if(counter % 200 == 0){
+ 162   5                                              lcdBacklight = ~lcdBacklight;
+ 163   5                                      }
+ 164   4                                      //counter
+ 165   4                                      TMOD = 0x01; //timer0 mode 1
+ 166   4                                      TL0 = 0x66; //timer start value
+ 167   4                                      TH0 = 0xFC; //timer start value
+ 168   4                                      TR0 = 1; //start timer
+ 169   4                                      while(~TF0); //wait for flag
+ 170   4                                      counter++; //increment counter
+ 171   4                                      TF0 = 0; //reset flag
+ 172   4                              }
+ 173   3                              TR0 = 0; //stop timer
+ 174   3                              lcdBacklight = 0;
+ 175   3                      }
+ 176   2              }
+ 177   1              else{
+ 178   2                      
+C51 COMPILER V9.60.0.0   MAIN                                                              05/14/2020 13:26:45 PAGE 4   
+
+ 179   2                      counter = 0;
+ 180   2                      //show road sign
+ 181   2                      LCD_Command (0x01);     //clear display
+ 182   2                      LCD_Command (0x80); //move cursor to home
+ 183   2                      LCD_String(trafficSign1); //print first line
+ 184   2                      LCD_Command(0xC0); //new line
+ 185   2                      LCD_String(trafficSign2); //print second line
+ 186   2                      while(counter < lengthSeconds*1000) //repeat until total time is reached in ms
+ 187   2                      {
+ 188   3                              //counter
+ 189   3                              TMOD = 0x01; //timer0 mode 1
+ 190   3                              TL0 = 0x66; //starting value for 1ms
+ 191   3                              TH0 = 0xFC; //starting value for 1ms
+ 192   3                              TR0 = 1; //start timer
+ 193   3                              while(~TF0); // wait for flag
+ 194   3                              counter++; //increment counter
+ 195   3                              TF0 = 0; //reset flag
+ 196   3                      }
+ 197   2                      TR0 = 0; //stop timer
+ 198   2              }
+ 199   1      }
+ 200          
+ 201          void LCD_Init (void)
+ 202          {       
+ 203   1              delay(20);              //Wait for power
+ 204   1              lcdBacklight = 0; //set lcd back light to full brightness
+ 205   1              LCD_Command (0x38);     //8bit mode
+ 206   1              LCD_Command (0x0C);     //display cursor off
+ 207   1              LCD_Command (0x06);     //auto increment cursor
+ 208   1              LCD_Command (0x01);     //clear
+ 209   1              LCD_Command (0x80);     //cursor home
+ 210   1      }
+ 211          
+ 212          void delay(unsigned int count)  //approx ~1ms
+ 213          {
+ 214   1              int i,j;
+ 215   1              for(i=0;i<count;i++)
+ 216   1              for(j=0;j<112;j++);
+ 217   1      }
+ 218          
+ 219          void LCD_Command (unsigned char cmd)
+ 220          {
+ 221   1              lcd_data_port= cmd;
+ 222   1              rs=0; //command reg
+ 223   1              rw=0; //write
+ 224   1              en=1; //enable
+ 225   1              delay(1); //wait for lcd reg to fill
+ 226   1              en=0; //disable
+ 227   1              delay(5); //wait for command
+ 228   1      }
+ 229          
+ 230          void LCD_Char (unsigned char char_data)
+ 231          {
+ 232   1              lcd_data_port=char_data; //put char on output to lcd
+ 233   1              rs=1; //data reg
+ 234   1              rw=0; //write
+ 235   1              en=1; //enable          
+ 236   1              delay(1); //wait for lcd reg to fill
+ 237   1              en=0; //disable
+ 238   1              delay(5); //wait for print
+ 239   1      }
+ 240          
+C51 COMPILER V9.60.0.0   MAIN                                                              05/14/2020 13:26:45 PAGE 5   
+
+ 241          void LCD_String (unsigned char *str)
+ 242          {
+ 243   1              int i;
+ 244   1              for(i=0;str[i]!=0;i++)
+ 245   1              {
+ 246   2                      LCD_Char (str[i]);
+ 247   2              }
+ 248   1      }
+ 249          
+ 250          
+ 251          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    622    ----
+   CONSTANT SIZE    =     22    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     30      10
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
